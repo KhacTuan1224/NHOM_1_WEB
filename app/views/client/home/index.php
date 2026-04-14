@@ -24,7 +24,8 @@ ob_start();
                             <a href="<?php echo htmlspecialchars($banner['link_dich']); ?>" style="display: block;">
                                 <img src="<?php echo htmlspecialchars($banner['hinh_anh_desktop']); ?>"
                                     alt="<?php echo htmlspecialchars($banner['tieu_de']); ?>"
-                                    style="width: 100%; min-height: 450px; max-height: 800px; object-fit: cover; display: block; border-radius: 0;">
+                                    class="hero-img-responsive"
+                                    style="width: 100%; object-fit: cover; display: block; border-radius: 0;">
                             </a>
                         </div>
                     </div>
@@ -45,7 +46,105 @@ ob_start();
     </div>
 </div>
 
-<div class="category-wrapper" style="position: relative; z-index: 10; margin-top: -300px; margin-bottom: 30px;">
+<div class="category-wrapper" style="position: relative; z-index: 10; margin-bottom: 30px;">
+    
+    <style>
+    .dual-banner-wrapper {
+        position: relative;
+        width: 100%;
+        margin-bottom: 20px;
+    }
+
+    .dual-banner-track {
+        display: flex;
+        gap: 16px; 
+        overflow-x: auto;
+        scroll-behavior: smooth;
+        -ms-overflow-style: none; 
+        scrollbar-width: none;    
+    }
+
+    .dual-banner-track::-webkit-scrollbar {
+        display: none;
+    }
+
+    .dual-banner-item {
+        flex: 0 0 calc(50% - 8px);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .dual-banner-item img {
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+        display: block;
+        border-radius: 12px;
+        transition: transform 0.3s ease;
+    }
+
+    .btn-dual-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 36px;
+        height: 36px;
+        background-color: #fff;
+        border: 1px solid #eaeaea;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 10;
+        color: #555;
+        transition: all 0.2s ease;
+    }
+
+    .btn-dual-nav:hover {
+        color: #cb1c22;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+
+    .btn-dual-prev { left: -18px; }
+    .btn-dual-next { right: -18px; } 
+
+    @media (max-width: 768px) {
+        .dual-banner-item {
+            flex: 0 0 100%;
+        }
+        .btn-dual-prev { left: 5px; }
+        .btn-dual-next { right: 5px; }
+    }
+    </style>
+
+    <?php if (!empty($bannerMid)): ?>
+    <div class="container-xl px-0">
+        <div class="dual-banner-wrapper">
+            <div class="dual-banner-track" id="dualBannerTrack">
+                <?php foreach ($bannerMid as $banner): ?>
+                <div class="dual-banner-item">
+                    <a href="<?php echo htmlspecialchars($banner['link_dich']); ?>" class="d-block">
+                        <img src="<?php echo htmlspecialchars($banner['hinh_anh_desktop']); ?>"
+                             alt="<?php echo htmlspecialchars($banner['tieu_de']); ?>">
+                    </a>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+            <?php if(count($bannerMid) > 2): ?>
+            <button class="btn-dual-nav btn-dual-prev" id="btnDualPrev">
+                <i class="fa fa-chevron-left" style="font-size: 14px;"></i>
+            </button>
+            <button class="btn-dual-nav btn-dual-next" id="btnDualNext">
+                <i class="fa fa-chevron-right" style="font-size: 14px;"></i>
+            </button>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <div class="container-xl category shadow-sm"
         style="background: #fff; border-radius: 12px; border: none; padding: 15px 0;">
 
@@ -56,16 +155,16 @@ ob_start();
         <div class="row g-2 px-2">
             <?php if (!empty($danhMucNoiBat)): ?>
                 <?php foreach ($danhMucNoiBat as $dm): ?>
-                    <div class="col-6 col-md-3 col-lg-custom-8">
+                    <div class="col-3 col-md-3 col-lg-custom-8">
                         <div class="category-item" style="border: none; text-align: center;">
                             <a href="/danh-muc/<?php echo htmlspecialchars($dm['slug']); ?>" class="text-decoration-none">
                                 <div class="category-image" style="background: transparent;">
                                     <?php if (!empty($dm['icon_url'])): ?>
                                         <img src="<?php echo htmlspecialchars($dm['icon_url']); ?>"
-                                            alt="<?php echo htmlspecialchars($dm['ten']); ?>">
+                                            alt="<?php echo htmlspecialchars($dm['ten']); ?>" class="cat-icon-img">
                                     <?php else: ?>
                                         <img src="<?= ASSET_URL ?>/assets/client/images/icon/phone.png"
-                                            alt="<?php echo htmlspecialchars($dm['ten']); ?>">
+                                            alt="<?php echo htmlspecialchars($dm['ten']); ?>" class="cat-icon-img">
                                     <?php endif; ?>
                                 </div>
                                 <p class="category-title mb-0"
@@ -107,7 +206,6 @@ ob_start();
         left: 0;
         bottom: 0;
         width: 100px;
-
         background: linear-gradient(to right, #fff 0%, transparent 100%);
         z-index: 10;
         pointer-events: none;
@@ -137,13 +235,8 @@ ob_start();
     }
 
     @keyframes marquee-scroll {
-        0% {
-            transform: translateX(0);
-        }
-
-        100% {
-            transform: translateX(-50%);
-        }
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
     }
 
     .continuous-slider-item {
@@ -159,31 +252,48 @@ ob_start();
         }
     }
 
-    .custom-hover-card {
-        transition: box-shadow 0.3s ease;
-    }
-
-    .custom-hover-zoom {
-        transition: transform 0.5s linear;
-    }
-
-    .custom-hover-card:hover .custom-hover-zoom {
-        transform: scale(1.02);
-    }
-
-    .category-item,
-    .suggestion-item {
-        transition: all 0.2s ease;
-    }
-
-    .category-item .category-image img,
-    .suggestion-item .suggestion-image img {
+    .custom-hover-card { transition: box-shadow 0.3s ease; }
+    .custom-hover-zoom { transition: transform 0.5s linear; }
+    .custom-hover-card:hover .custom-hover-zoom { transform: scale(1.02); }
+    .category-item, .suggestion-item { transition: all 0.2s ease; }
+    .category-item .category-image img, .suggestion-item .suggestion-image img {
         transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
     }
-
-    .category-item:hover .category-image img,
-    .suggestion-item:hover .suggestion-image img {
+    .category-item:hover .category-image img, .suggestion-item:hover .suggestion-image img {
         transform: scale(1.15);
+    }
+    
+    .hero-img-responsive {
+        min-height: 450px;
+        max-height: 800px;
+    }
+    .category-wrapper {
+        margin-top: -300px; 
+    }
+    .cat-icon-img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    @media (max-width: 768px) {
+        .hero-img-responsive {
+            min-height: unset; 
+            height: 200px; 
+            max-height: 300px;
+        }
+        .hero-fade-overlay {
+            height: 80px !important; 
+        }
+        .category-wrapper {
+            margin-top: -40px; 
+            padding: 0 10px;
+        }
+        .cat-icon-img {
+            max-width: 45px; 
+        }
+        .category-title {
+            font-size: 0.7rem !important; 
+        }
     }
 </style>
 
@@ -211,7 +321,6 @@ ob_start();
                                 isset($sp['giam_toi_da']) ? (float) $sp['giam_toi_da'] : null
                             );
 
-                            // Cũng cần ép kiểu ở phép tính này để tránh lỗi toán học với NULL
                             $tienGiam = (float) ($sp['gia_hien_thi'] ?? 0) - $giaSauGiam;
                             ?>
                             <div class="continuous-slider-item">
@@ -336,9 +445,7 @@ ob_start();
         padding: 6px;
         width: 100%;
         user-select: none;
-        /* Không cho phép bôi đen text */
         -webkit-user-drag: none;
-        /* Chặn kéo thẻ a/img trên các trình duyệt lõi webkit */
     }
 
     .custom-slider-btn {
@@ -405,7 +512,6 @@ ob_start();
         position: absolute;
         top: 0;
         left: 0;
-        /* Hiệu ứng trượt cho Desktop */
         transition: left 0.4s ease-in-out;
     }
 
@@ -467,7 +573,6 @@ ob_start();
 
         let currentCol = 0;
 
-        // Các biến dùng cho tính năng Kéo thả (Drag)
         let isDown = false;
         let startX;
         let scrollLeft;
@@ -570,9 +675,7 @@ ob_start();
 
         window.addEventListener('resize', initSlider);
 
-        // --- XỬ LÝ KÉO THẢ (DRAG TO SCROLL) ---
 
-        // BƯỚC 1: Ngăn chặn trình duyệt tự kéo bóng mờ của ảnh/link
         const draggables = viewport.querySelectorAll('a, img');
         draggables.forEach(el => {
             el.addEventListener('dragstart', (e) => e.preventDefault());
@@ -580,7 +683,7 @@ ob_start();
 
         viewport.addEventListener('mousedown', (e) => {
             isDown = true;
-            isDragging = false; // Đặt lại cờ kéo mỗi lần nhấn chuột xuống
+            isDragging = false; 
             viewport.style.cursor = 'grabbing';
             viewport.style.scrollBehavior = 'auto';
             startX = e.pageX - viewport.offsetLeft;
@@ -599,7 +702,6 @@ ob_start();
             viewport.style.cursor = 'default';
             viewport.style.scrollBehavior = 'smooth';
 
-            // BƯỚC 2: Cố tình delay 50 mili-giây để sự kiện 'click' kịp nhận diện isDragging đang là true
             setTimeout(() => {
                 isDragging = false;
             }, 50);
@@ -607,7 +709,7 @@ ob_start();
 
         viewport.addEventListener('mousemove', (e) => {
             if (!isDown) return;
-            e.preventDefault(); // Ngăn bôi đen văn bản
+            e.preventDefault(); //ngăn bôi đen văn bản
 
             const x = e.pageX - viewport.offsetLeft;
             const walk = (x - startX) * 2;
@@ -619,7 +721,6 @@ ob_start();
             viewport.scrollLeft = scrollLeft - walk;
         });
 
-        // Ngăn chặn sự kiện click vào link nếu hệ thống xác định là thao tác kéo
         const links = viewport.querySelectorAll('a');
         links.forEach(link => {
             link.addEventListener('click', (e) => {
@@ -634,16 +735,12 @@ ob_start();
 </script>
 
 <?php if (!empty($bannerMid[1])): ?>
-    <div class="banner-2 mt-4">
-        <div class="container-xl">
-            <div class="row">
-                <div class="col-12 banner shadow-sm rounded-3">
-                    <a href="<?php echo htmlspecialchars($bannerMid[1]['link_dich'] ?? '#'); ?>">
-                        <img src="<?php echo htmlspecialchars($bannerMid[1]['hinh_anh_desktop']); ?>"
-                            style="width:100%; border-radius: 8px;">
-                    </a>
-                </div>
-            </div>
+    <div class="banner-2 mt-4 mb-4">
+        <div class="container-xl px-0 shadow-sm rounded-3 overflow-hidden">
+            <a href="<?php echo htmlspecialchars($bannerMid[1]['link_dich'] ?? '#'); ?>" class="d-block">
+                <img src="<?php echo htmlspecialchars($bannerMid[1]['hinh_anh_desktop']); ?>"
+                     style="width: 100%; display: block; border-radius: 12px;">
+            </a>
         </div>
     </div>
 <?php endif; ?>
@@ -699,16 +796,11 @@ ob_start();
 </div>
 
 <?php if (!empty($bannerMid[2])): ?>
-    <div class="banner-3 mt-4">
-        <div class="container-xl">
-            <div class="row">
-                <div class="col-12 banner shadow-sm rounded-3">
-                    <a href="<?php echo htmlspecialchars($bannerMid[2]['link_dich'] ?? '#'); ?>">
-                        <img src="<?php echo htmlspecialchars($bannerMid[2]['hinh_anh_desktop']); ?>"
-                            style="width:100%; border-radius: 8px;">
-                    </a>
-                </div>
-            </div>
+    <div class="banner-3 mt-4 mb-4"> <div class="container-xl px-0 shadow-sm rounded-3 overflow-hidden">
+            <a href="<?php echo htmlspecialchars($bannerMid[2]['link_dich'] ?? '#'); ?>" class="d-block">
+                <img src="<?php echo htmlspecialchars($bannerMid[2]['hinh_anh_desktop']); ?>"
+                     style="width: 100%; display: block; border-radius: 12px;">
+            </a>
         </div>
     </div>
 <?php endif; ?>
@@ -810,18 +902,18 @@ ob_start();
 </div>
 
 <?php if (!empty($bannerMid) && count($bannerMid) >= 3): ?>
-    <div class="category-bottom mt-5 mb-5">
-        <div class="container-xl">
-            <div class="row g-3">
+    <div class="category-bottom mt-4 mb-4">
+        <div class="container-xl px-0">
+            <div class="d-flex flex-column flex-lg-row gap-3">
                 <?php foreach (array_slice($bannerMid, 3, 3) as $b): ?>
-                    <div class="col-lg-4 col-12">
-                        <div class="category-bot-item shadow-sm rounded-3">
-                            <a href="<?php echo htmlspecialchars($b['link_dich'] ?? '#'); ?>">
-                                <img src="<?php echo htmlspecialchars($b['hinh_anh_desktop']); ?>"
-                                    style="width:100%; border-radius: 8px;">
-                            </a>
-                        </div>
+                    
+                    <div class="category-bot-item shadow-sm rounded-3 overflow-hidden w-100">
+                        <a href="<?php echo htmlspecialchars($b['link_dich'] ?? '#'); ?>" class="d-block h-100">
+                            <img src="<?php echo htmlspecialchars($b['hinh_anh_desktop']); ?>"
+                                 style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                        </a>
                     </div>
+
                 <?php endforeach; ?>
             </div>
         </div>
@@ -1061,7 +1153,6 @@ ob_start();
                 <div class="zalo-title">FPT Shop</div>
             </div>
             <div class="zalo-header-actions">
-                <div class="zalo-circle-btn">•••</div>
                 <div class="zalo-circle-btn" id="zaloClose"><i class="fas fa-chevron-down text-white"></i></div>
             </div>
         </div>
@@ -1172,6 +1263,29 @@ ob_start();
             }
         }
     })();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const track = document.getElementById('dualBannerTrack');
+    const btnPrev = document.getElementById('btnDualPrev');
+    const btnNext = document.getElementById('btnDualNext');
+
+    if (track && btnPrev && btnNext) {
+        btnNext.addEventListener('click', function() {
+
+            const itemWidth = track.querySelector('.dual-banner-item').offsetWidth;
+            const scrollAmount = itemWidth + 16;
+            track.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        });
+
+        btnPrev.addEventListener('click', function() {
+            const itemWidth = track.querySelector('.dual-banner-item').offsetWidth;
+            const scrollAmount = itemWidth + 16;
+            track.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+        });
+    }
+});
 </script>
 
 <?php

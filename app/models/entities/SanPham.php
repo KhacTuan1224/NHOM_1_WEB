@@ -52,8 +52,15 @@ class SanPham extends BaseModel
     }
 
     // BỔ SUNG: Thêm tham số $trangThai mặc định là 'CON_BAN'
-    private function buildWhereClause(?string $keyword = null, int $danhMucId = 0, ?float $giaMin = null, ?float $giaMax = null, ?string $trangThai = 'CON_BAN'): string
-    {
+    private function buildWhereClause(
+        ?string $keyword = null,
+        int $danhMucId = 0,
+        ?float $giaMin = null,
+        ?float $giaMax = null,
+        ?string $trangThai = 'CON_BAN',
+        ?array $hangFilters = null,
+        ?array $giaKhoangFilters = null
+    ): string {
         $whereConditions = [];
 
         // Chặn sản phẩm ngưng bán
@@ -67,7 +74,49 @@ class SanPham extends BaseModel
         }
 
         if ($danhMucId > 0) {
-            $whereConditions[] = 'sp.danh_muc_id = ' . (int)$danhMucId;
+            $danhMucId = (int)$danhMucId;
+            $whereConditions[] = "sp.danh_muc_id IN (
+                SELECT dm.id
+                FROM danh_muc dm
+                WHERE dm.id = $danhMucId OR dm.danh_muc_cha_id = $danhMucId
+            )";
+        }
+
+        if (!empty($hangFilters)) {
+            $hangConditions = [];
+            foreach ($hangFilters as $hang) {
+                $hang = trim((string)$hang);
+                if ($hang === '') {
+                    continue;
+                }
+                $hangConditions[] = "sp.hang_san_xuat = '" . addslashes($hang) . "'";
+            }
+
+            if (!empty($hangConditions)) {
+                $whereConditions[] = '(' . implode(' OR ', $hangConditions) . ')';
+            }
+        }
+
+        if (!empty($giaKhoangFilters)) {
+            $giaKhoangConditions = [];
+            foreach ($giaKhoangFilters as $khoang) {
+                $khoang = trim((string)$khoang);
+                if (!preg_match('/^(\d+)-(\d+)$/', $khoang, $matches)) {
+                    continue;
+                }
+
+                $minVal = (float)$matches[1];
+                $maxVal = (float)$matches[2];
+                if ($minVal < 0 || $maxVal <= 0 || $maxVal < $minVal) {
+                    continue;
+                }
+
+                $giaKhoangConditions[] = '(sp.gia_hien_thi >= ' . $minVal . ' AND sp.gia_hien_thi <= ' . $maxVal . ')';
+            }
+
+            if (!empty($giaKhoangConditions)) {
+                $whereConditions[] = '(' . implode(' OR ', $giaKhoangConditions) . ')';
+            }
         }
 
         if ($giaMin !== null) {
@@ -85,20 +134,36 @@ class SanPham extends BaseModel
         return 'WHERE ' . implode(' AND ', $whereConditions);
     }
 
-    public function demSanPham(?string $keyword = null, int $danhMucId = 0, ?float $giaMin = null, ?float $giaMax = null): int
-    {
+    public function demSanPham(
+        ?string $keyword = null,
+        int $danhMucId = 0,
+        ?float $giaMin = null,
+        ?float $giaMax = null,
+        ?array $hangFilters = null,
+        ?array $giaKhoangFilters = null
+    ): int {
         // buildWhereClause đã tự động thêm điều kiện CON_BAN
-        $whereClause = $this->buildWhereClause($keyword, $danhMucId, $giaMin, $giaMax);
+        $whereClause = $this->buildWhereClause($keyword, $danhMucId, $giaMin, $giaMax, 'CON_BAN', $hangFilters, $giaKhoangFilters);
         $sql = "SELECT COUNT(*) as total FROM {$this->table} sp $whereClause";
         $result = parent::query($sql);
 
         return !empty($result) ? (int)$result[0]['total'] : 0;
     }
 
-    public function layDanhSachPhanTrang(?string $keyword = null, int $danhMucId = 0, ?float $giaMin = null, ?float $giaMax = null, int $limit = 15, int $offset = 0, string $sortBy = 'ngay_tao', string $sortOrder = 'DESC'): array
-    {
+    public function layDanhSachPhanTrang(
+        ?string $keyword = null,
+        int $danhMucId = 0,
+        ?float $giaMin = null,
+        ?float $giaMax = null,
+        int $limit = 15,
+        int $offset = 0,
+        string $sortBy = 'ngay_tao',
+        string $sortOrder = 'DESC',
+        ?array $hangFilters = null,
+        ?array $giaKhoangFilters = null
+    ): array {
         // buildWhereClause đã tự động thêm điều kiện CON_BAN
-        $whereClause = $this->buildWhereClause($keyword, $danhMucId, $giaMin, $giaMax);
+        $whereClause = $this->buildWhereClause($keyword, $danhMucId, $giaMin, $giaMax, 'CON_BAN', $hangFilters, $giaKhoangFilters);
         $limit = max(1, (int)$limit);
         $offset = max(0, (int)$offset);
 
@@ -114,10 +179,17 @@ class SanPham extends BaseModel
             $sortOrder = 'DESC';
         }
 
+        // FIX: Lấy giá thấp nhất từ phiên bản sản phẩm nếu có, nếu không thì lấy gia_hien_thi
         $sql = "SELECT sp.*, dm.ten AS ten_danh_muc,
                        (SELECT url_anh FROM hinh_anh_san_pham 
                         WHERE san_pham_id = sp.id AND la_anh_chinh = 1 
-                        LIMIT 1) as anh_chinh
+                        LIMIT 1) as anh_chinh,
+                       COALESCE(
+                           (SELECT MIN(pb.gia_ban) 
+                            FROM phien_ban_san_pham pb 
+                            WHERE pb.san_pham_id = sp.id),
+                           sp.gia_hien_thi
+                       ) AS gia_hien_thi
                 FROM {$this->table} sp
                 LEFT JOIN danh_muc dm ON sp.danh_muc_id = dm.id
                 $whereClause
@@ -125,6 +197,46 @@ class SanPham extends BaseModel
                 LIMIT $limit OFFSET $offset";
 
         return parent::query($sql);
+    }
+
+    public function layDanhSachHangSanXuat(?string $keyword = null, int $danhMucId = 0): array
+    {
+        $whereClause = $this->buildWhereClause($keyword, $danhMucId, null, null, 'CON_BAN', null, null);
+        $sql = "SELECT DISTINCT sp.hang_san_xuat
+                FROM {$this->table} sp
+                $whereClause
+                AND sp.hang_san_xuat IS NOT NULL
+                AND sp.hang_san_xuat != ''
+                ORDER BY sp.hang_san_xuat ASC";
+
+        if ($whereClause === '') {
+            $sql = "SELECT DISTINCT sp.hang_san_xuat
+                    FROM {$this->table} sp
+                    WHERE sp.trang_thai = 'CON_BAN'
+                    AND sp.hang_san_xuat IS NOT NULL
+                    AND sp.hang_san_xuat != ''
+                    ORDER BY sp.hang_san_xuat ASC";
+        }
+
+        return parent::query($sql);
+    }
+
+    public function layKhoangGiaSanPham(?string $keyword = null, int $danhMucId = 0, ?array $hangFilters = null): array
+    {
+        $whereClause = $this->buildWhereClause($keyword, $danhMucId, null, null, 'CON_BAN', $hangFilters, null);
+
+        if ($whereClause === '') {
+            $whereClause = "WHERE sp.trang_thai = 'CON_BAN'";
+        }
+
+        $sql = "SELECT MIN(sp.gia_hien_thi) AS min_gia, MAX(sp.gia_hien_thi) AS max_gia
+                FROM {$this->table} sp
+                $whereClause
+                AND sp.gia_hien_thi IS NOT NULL
+                AND sp.gia_hien_thi > 0";
+
+        $result = parent::query($sql);
+        return $result[0] ?? ['min_gia' => 0, 'max_gia' => 0];
     }
 
     public function layDanhSachDanhMucHoatDong(): array
@@ -136,6 +248,35 @@ class SanPham extends BaseModel
     public function layTatCa(): array
     {
         $sql = "SELECT id, ten_san_pham, slug FROM {$this->table} WHERE slug IS NOT NULL AND slug != '' ORDER BY ten_san_pham ASC";
+        return parent::query($sql);
+    }
+
+    public function layDanhSachChoSoSanh(): array
+    {
+        // FIX: Lấy giá thấp nhất từ phiên bản sản phẩm
+        $sql = "SELECT sp.id,
+                       sp.ten_san_pham,
+                       sp.slug,
+                       COALESCE(
+                           (SELECT MIN(pb.gia_ban) 
+                            FROM phien_ban_san_pham pb 
+                            WHERE pb.san_pham_id = sp.id),
+                           sp.gia_hien_thi
+                       ) AS gia_hien_thi,
+                       sp.hang_san_xuat,
+                       sp.danh_muc_id,
+                       dm.ten AS ten_danh_muc,
+                       (SELECT ha.url_anh
+                        FROM hinh_anh_san_pham ha
+                        WHERE ha.san_pham_id = sp.id AND ha.la_anh_chinh = 1
+                        LIMIT 1) AS anh_chinh
+                FROM {$this->table} sp
+                LEFT JOIN danh_muc dm ON dm.id = sp.danh_muc_id
+                WHERE sp.trang_thai = 'CON_BAN'
+                  AND sp.slug IS NOT NULL
+                  AND sp.slug != ''
+                ORDER BY sp.ten_san_pham ASC";
+
         return parent::query($sql);
     }
 
@@ -172,8 +313,8 @@ class SanPham extends BaseModel
         $sql = "UPDATE phien_ban_san_pham
                 SET trang_thai = CASE WHEN so_luong_ton > 0 THEN 'CON_HANG' ELSE 'HET_HANG' END
                 WHERE san_pham_id = $sanPhamId";
-              $this->query($sql);
-              return mysqli_affected_rows($this->link);
+        $this->query($sql);
+        return mysqli_affected_rows($this->link);
     }
 
     // ===== Getter =====
@@ -293,15 +434,22 @@ class SanPham extends BaseModel
     public function laySanPhamNoiBat(int $limit = 8): array
     {
         $limit = max(1, (int)$limit);
+        // FIX: Lấy giá thấp nhất từ phiên bản sản phẩm
         $sql = "SELECT sp.*, 
                        (SELECT url_anh FROM hinh_anh_san_pham 
                         WHERE san_pham_id = sp.id AND la_anh_chinh = 1 
-                        LIMIT 1) as anh_chinh
+                        LIMIT 1) as anh_chinh,
+                       COALESCE(
+                           (SELECT MIN(pb.gia_ban) 
+                            FROM phien_ban_san_pham pb 
+                            WHERE pb.san_pham_id = sp.id),
+                           sp.gia_hien_thi
+                       ) AS gia_hien_thi
                 FROM {$this->table} sp
                 WHERE sp.noi_bat = 1 AND sp.trang_thai = 'CON_BAN'
                 ORDER BY sp.ngay_tao DESC
                 LIMIT $limit";
-        
+
         return parent::query($sql);
     }
 
@@ -311,13 +459,20 @@ class SanPham extends BaseModel
     public function laySanPhamKhuyenMai(int $limit = 8): array
     {
         $limit = max(1, (int)$limit);
+        // FIX: Lấy giá thấp nhất từ phiên bản sản phẩm
         $sql = "SELECT sp.*, 
                        km.loai_giam, 
                        km.gia_tri_giam, 
                        km.giam_toi_da,
                        (SELECT url_anh FROM hinh_anh_san_pham 
                         WHERE san_pham_id = sp.id AND la_anh_chinh = 1 
-                        LIMIT 1) as anh_chinh
+                        LIMIT 1) as anh_chinh,
+                       COALESCE(
+                           (SELECT MIN(pb.gia_ban) 
+                            FROM phien_ban_san_pham pb 
+                            WHERE pb.san_pham_id = sp.id),
+                           sp.gia_hien_thi
+                       ) AS gia_hien_thi
                 FROM {$this->table} sp
                 INNER JOIN san_pham_khuyen_mai spkm ON sp.id = spkm.san_pham_id
                 INNER JOIN khuyen_mai km ON spkm.khuyen_mai_id = km.id
@@ -327,7 +482,7 @@ class SanPham extends BaseModel
                   AND (km.ngay_ket_thuc IS NULL OR km.ngay_ket_thuc >= NOW())
                 ORDER BY sp.ngay_tao DESC
                 LIMIT $limit";
-        
+
         return parent::query($sql);
     }
 
@@ -338,18 +493,25 @@ class SanPham extends BaseModel
     {
         $limit = max(1, (int)$limit);
         $slugDanhMuc = mysqli_real_escape_string($this->link, $slugDanhMuc);
-        
+
+        // FIX: Lấy giá thấp nhất từ phiên bản sản phẩm
         $sql = "SELECT sp.*, 
                        (SELECT url_anh FROM hinh_anh_san_pham 
                         WHERE san_pham_id = sp.id AND la_anh_chinh = 1 
-                        LIMIT 1) as anh_chinh
+                        LIMIT 1) as anh_chinh,
+                       COALESCE(
+                           (SELECT MIN(pb.gia_ban) 
+                            FROM phien_ban_san_pham pb 
+                            WHERE pb.san_pham_id = sp.id),
+                           sp.gia_hien_thi
+                       ) AS gia_hien_thi
                 FROM {$this->table} sp
                 INNER JOIN danh_muc dm ON sp.danh_muc_id = dm.id
                 WHERE dm.slug = '$slugDanhMuc' 
                   AND sp.trang_thai = 'CON_BAN'
                 ORDER BY sp.ngay_tao DESC
                 LIMIT $limit";
-        
+
         return parent::query($sql);
     }
 
@@ -365,7 +527,7 @@ class SanPham extends BaseModel
             }
             return $giaGoc - $tienGiam;
         }
-        
+
         // SO_TIEN
         return max(0, $giaGoc - $giaTriGiam);
     }
@@ -376,14 +538,17 @@ class SanPham extends BaseModel
     public function layChiTietTheoSlug(string $slug): ?array
     {
         $slug = mysqli_real_escape_string($this->link, $slug);
-        
-        // BỔ SUNG: AND sp.trang_thai = 'CON_BAN' để chặn xem chi tiết khi đã ngưng bán
-        $sql = "SELECT sp.*, dm.ten AS ten_danh_muc, dm.slug AS slug_danh_muc
+
+        // FIX: Thêm ảnh chính vào query
+        $sql = "SELECT sp.*, dm.ten AS ten_danh_muc, dm.slug AS slug_danh_muc,
+                       (SELECT url_anh FROM hinh_anh_san_pham 
+                        WHERE san_pham_id = sp.id AND la_anh_chinh = 1 
+                        LIMIT 1) as anh_chinh
                 FROM {$this->table} sp
                 LEFT JOIN danh_muc dm ON sp.danh_muc_id = dm.id
                 WHERE sp.slug = '$slug' AND sp.trang_thai = 'CON_BAN'
                 LIMIT 1";
-        
+
         $result = parent::query($sql);
         return !empty($result) ? $result[0] : null;
     }
